@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:html';
-import 'dart:math';
 
+import 'food.dart';
 import 'keyboard.dart';
 import 'snake.dart';
 import 'board.dart';
@@ -10,16 +10,22 @@ class Game {
   final Board _board;
   final Keyboard _keyboard;
 
+  int score = 0;
+
+  StreamController<int> scoreStream = new StreamController<int>();
+
 	// smaller numbers make the game run faster
-  static const num GAME_SPEED = 50;
+  static num GAME_SPEED = 50;
   num _lastTimeStamp = 0;
   
   Snake _snake;  
-	Point _food;
+	Food _food;
 
   bool _stopped = false;
   
-  Game(this._board, this._keyboard) {}
+  Game(this._board, this._keyboard) {
+    scoreStream.onListen = () => scoreStream.add(score);
+  }
 
   Future run() async {  
     update(await window.animationFrame);
@@ -32,7 +38,7 @@ class Game {
     if (diff > GAME_SPEED) {
       _lastTimeStamp = delta;
       _board.clear();
-      _board.drawCell(_food, "blue");
+      _food.drawFood();
       _checkInput();
       _snake.update();
       _checkForCollisions();
@@ -60,6 +66,16 @@ class Game {
     return _stopped;
   }
 
+  void slowDown() {
+    GAME_SPEED *= 2;
+    print(GAME_SPEED);
+  }
+
+  void speedUp() {
+    GAME_SPEED ~/= 2;
+    print(GAME_SPEED);
+  }
+
   void _checkInput() {  
     if (_keyboard.isPressed(KeyCode.LEFT)) {
       _snake.changeDirection(LEFT);
@@ -72,20 +88,33 @@ class Game {
     }
     else if (_keyboard.isPressed(KeyCode.DOWN)) {
       _snake.changeDirection(DOWN);
+    } else if (_keyboard.isPressed(KeyCode.NUM_PLUS)) {
+      speedUp();
+    } else if (_keyboard.isPressed(KeyCode.NUM_MINUS)) {
+      slowDown();
     }
   }
 
+  Stream<int> getScoreStream() {
+    return scoreStream.stream;
+  }
   
-  void init() {  
+  void init() {
+    score = 0;
+    scoreStream.add(score);
     _snake = new Snake(_board);
-    _food = _board.randomPoint();
+    _food = new Food(_board);
+    _food.generateFood();
   }
   
   void _checkForCollisions() {  
     // check for collision with food
-    if (_snake.head == _food) {
+    var food_points = _food.hasEaten(_snake.head);
+
+    if (food_points > 0) {
+      score += food_points;
+      scoreStream.add(score);
       _snake.grow();
-      _food = _board.randomPoint();
     }
 
     // check death conditions
